@@ -1,14 +1,6 @@
 import numpy as np
 
 
-def set_seed(seed):
-  """
-  For reproducibility. Update this as we import more libraries that use seed.
-  """
-  np.random.seed(seed)
-
-set_seed(0)
-
 class Agent():
   '''The agent class that is to be filled.
      You are allowed to add any method you
