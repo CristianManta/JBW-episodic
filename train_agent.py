@@ -51,17 +51,6 @@ def train_agent(agent,
                 evaluation_freq,
                 n_episodes_to_evaluate):
 
-  seed = 0
-  random.seed(seed)
-  np.random.seed(seed)
-  torch.manual_seed(seed)
-  tf.random.set_seed(seed)
-  env.seed(seed)
-  env_eval.seed(seed)
-  
-  torch.backends.cudnn.deterministic = True
-  torch.backends.cudnn.benchmark = False 
-
   timestep = 0
   array_of_mean_acc_rewards = []
     
@@ -85,6 +74,15 @@ def train_agent(agent,
 
 
 if __name__ == '__main__':
+
+  seed = 0
+  random.seed(seed)
+  np.random.seed(seed)
+  torch.manual_seed(seed)
+  tf.random.set_seed(seed)
+  
+  torch.backends.cudnn.deterministic = True
+  torch.backends.cudnn.benchmark = False
     
   parser = argparse.ArgumentParser(description='')
   parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
@@ -102,6 +100,10 @@ if __name__ == '__main__':
 
   env = get_environment(env_type) 
   env_eval = get_environment(env_type)
+
+  env.seed(seed)
+  env_eval.seed(seed)
+
   if 'jellybean' in env_type:
     env_specs = {'scent_space': env.scent_space, 'vision_space': env.vision_space, 'feature_space': env.feature_space, 'action_space': env.action_space}
   if 'mujoco' in env_type:
