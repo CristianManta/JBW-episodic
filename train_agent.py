@@ -73,20 +73,21 @@ def train_agent(agent,
   return array_of_mean_acc_rewards
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  
+    
+  parser = argparse.ArgumentParser(description='')
+  parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
+  parser.add_argument('--seed', type=int, default=0, help='seed')
+  args = parser.parse_args()
 
-  seed = 0
+  seed = args.seed
   random.seed(seed)
   np.random.seed(seed)
   torch.manual_seed(seed)
   tf.random.set_seed(seed)
-  
+
   torch.backends.cudnn.deterministic = True
   torch.backends.cudnn.benchmark = False
-    
-  parser = argparse.ArgumentParser(description='')
-  parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
-  args = parser.parse_args()
 
   path = './'+args.group+'/'
   files = [f for f in listdir(path) if isfile(join(path, f))]
