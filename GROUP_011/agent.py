@@ -7,7 +7,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs):
+  def __init__(self, env_specs, encoding_method='dense'):
     self.env_specs = env_specs
     self.alpha = 0.01
     self.gamma = 0.99
@@ -15,15 +15,19 @@ class Agent():
     self.num_actions = 4
     self.input_size = 15 * 15
     self.w = np.random.randn(self.input_size)
+    self.action_position_embeds = [(7, 8), (6, 7), (8, 7), (7, 6)]    
 
-    self.action_position_embeds = [(7, 8), (6, 7), (8, 7), (7, 6)]
+    if encoding_method == 'dense':
+      self.encode_features = self.encode_features_dense
+    elif encoding_method == 'sparse':
+      self.encode_features = self.encode_features_sparse
 
   def load_weights(self, root_path):
     # Add root_path in front of the path of the saved network parameters
     # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters
     pass
   
-  def encode_features(self, curr_obs, a):
+  def encode_features_dense(self, curr_obs, a):
     """
     In curr_obs[2].reshape((15, 15, 4)), the last dimension encodes the following:
     Jelly bean -> [0, 0, 1, 0]
@@ -41,7 +45,7 @@ class Agent():
 
     feats = curr_obs[2].reshape((15, 15, 4))
     feats = np.concatenate((feats, np.zeros((15, 15, 1), dtype=int)), axis=2) # Need to add fifth indicator with a "1" iff there's no object there
-    for i in range(15):
+    for i in range(15): # If you see a more compact (and fast) way to do this operation, please modify it or let me know
       for j in range(15):
         if sum(feats[i][j]) == 0:
           feats[i][j][-1] = 1    
@@ -52,6 +56,14 @@ class Agent():
     feats[self.action_position_embeds[a][0], self.action_position_embeds[a][1]] += 1 # Adding the action embedding
 
     return feats.flatten()
+
+  def encode_features_sparse(self, curr_obs, a):
+    feats = np.concatenate((curr_obs[0].flatten(), curr_obs[1].flatten(), curr_obs[2].flatten()))
+    action = np.zeros(self.num_actions)
+    action[a] = 1
+    feats = np.concatenate((feats, action))
+
+    return feats
 
   def act(self, curr_obs, mode='eval'):
     if mode == 'train':
