@@ -13,11 +13,11 @@ class Agent():
     self.gamma = 0.99
     self.eps = 0.1
     self.num_actions = 4
-    self.action_position_embeds = [(7, 8), (6, 7), (8, 7), (7, 6)]    
 
     if encoding_method == 'dense':      
       self.input_size = 15 * 15      
       self.encode_features = self.encode_features_dense
+      self.action_position_embeds = [(7, 8), (6, 7), (8, 7), (7, 6)]
 
     elif encoding_method == 'sparse':      
       self.input_size = 1582      
@@ -42,8 +42,8 @@ class Agent():
     """    
     jb_val = -2
     truffle_val = -1.1
-    banana_val = 2
-    apple_val = 3
+    banana_val = 1
+    apple_val = 2
     empty_val = 0 # This might be too naive
 
     feats = curr_obs[2].reshape((15, 15, 4))
@@ -93,6 +93,6 @@ class Agent():
       next_q = np.dot(self.w, next_feats)
       self.w = self.w + self.alpha * (reward + self.gamma * next_q - cur_q) * cur_feats
 
-    print(f"weights = {self.w}")
-    print(f"weights norm = {np.linalg.norm(self.w)}")
+    # print(f"weights = {self.w}")
+    # print(f"weights norm = {np.linalg.norm(self.w)}")
 
