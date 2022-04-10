@@ -1,5 +1,32 @@
 import numpy as np
+import torch
+from torch import nn
+import torch.nn.functional as F
 
+class LeNet(nn.Module):
+  def __init__(self):
+    super().__init__()
+    self.conv1 = nn.Conv2d(in_channels=4, out_channels=6, kernel_size=3)
+    self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
+    self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=3)
+    self.fc1 = nn.Linear(in_features=64, out_features=32)
+    self.fc2 = nn.Linear(in_features=32, out_features=4)
+
+  def forward(self, x):
+    x = self.pool(F.relu(self.conv1(x)))
+    x = self.pool(F.relu(self.conv2(x)))
+    x = torch.flatten(x,1)
+    x = F.relu(self.fc1(x))
+    x = self.fc2(x)
+    return torch.flatten(x)
+
+class LinearModel(nn.Module):
+  def __init__(self, input_size):
+    super().__init__()
+    self.w = nn.Linear(in_features=input_size, out_features=4)
+
+  def forward(self, x):
+    return torch.flatten(self.w(x))
 
 class Agent():
   '''The agent class that is to be filled.
@@ -7,7 +34,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, encoding_method='dense'):
+  def __init__(self, env_specs, model_str='linear', encoding_method='dense'):
     self.env_specs = env_specs
     self.alpha = 0.01
     self.gamma = 0.99
@@ -18,19 +45,26 @@ class Agent():
       self.input_size = 15 * 15      
       self.encode_features = self.encode_features_dense
       self.action_position_embeds = [(7, 8), (6, 7), (8, 7), (7, 6)]
-
     elif encoding_method == 'sparse':      
       self.input_size = 1582      
       self.encode_features = self.encode_features_sparse
+    elif encoding_method == 'grid':
+      self.encode_features = self.encode_features_grid
 
-    self.w = np.random.randn(self.input_size)
+    if model_str == 'lenet':
+      self.model = LeNet()
+    elif model_str == 'linear':
+      self.model = LinearModel(self.input_size)
+
+    self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.alpha)
+    self.criterion = nn.MSELoss()
 
   def load_weights(self, root_path):
     # Add root_path in front of the path of the saved network parameters
     # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters
     pass
   
-  def encode_features_dense(self, curr_obs, a):
+  def encode_features_dense(self, curr_obs):
     """
     In curr_obs[2].reshape((15, 15, 4)), the last dimension encodes the following:
     Jelly bean -> [0, 0, 1, 0]
@@ -56,17 +90,18 @@ class Agent():
     feats = feats.astype(bool)
     values = np.broadcast_to(np.array([apple_val, banana_val, jb_val, truffle_val, empty_val]), (15, 15, 5))
     feats = values[feats].reshape((15, 15))
-    feats[self.action_position_embeds[a][0], self.action_position_embeds[a][1]] += 1 # Adding the action embedding
+    feats = torch.from_numpy(feats.flatten())
+    return feats.float()
 
-    return feats.flatten()
+  def encode_features_sparse(self, curr_obs):
+    curr_obs = torch.from_numpy(curr_obs)
+    feats = torch.concatenate((curr_obs[0].flatten(), curr_obs[1].flatten(), curr_obs[2].flatten()))
 
-  def encode_features_sparse(self, curr_obs, a):
-    feats = np.concatenate((curr_obs[0].flatten(), curr_obs[1].flatten(), curr_obs[2].flatten()))
-    action = np.zeros(self.num_actions)
-    action[a] = 1
-    feats = np.concatenate((feats, action))
+    return feats.float()
 
-    return feats
+  def encode_features_grid(self, curr_obs):
+    curr_obs = torch.from_numpy(curr_obs[2])
+    return curr_obs.reshape((1, 4, 15, 15)).float()
 
   def act(self, curr_obs, mode='eval'):
     if mode == 'train':
@@ -74,25 +109,22 @@ class Agent():
       if rand_action:
         return self.env_specs['action_space'].sample()
 
-    q = np.zeros(self.num_actions)
-    for a in range(self.num_actions):
-      feats = self.encode_features(curr_obs, a)
-      q[a] = np.dot(self.w, feats)
-      
-    return np.argmax(q)
+    feats = self.encode_features(curr_obs)
+    q = self.model(feats)
+    return torch.argmax(q)
 
 
   def update(self, curr_obs, action, reward, next_obs, done, timestep):
-    cur_feats = self.encode_features(curr_obs, action)
-    cur_q = np.dot(self.w, cur_feats)
+    self.optimizer.zero_grad()
+    curr_feats = self.encode_features(curr_obs)
+    cur_q = self.model(curr_feats)[action]
     if done:
-      self.w = self.w + self.alpha * (reward - cur_q) * cur_feats
+      loss = self.criterion(cur_q, reward)
     else:
+      next_feats = self.encode_features(next_obs)
       next_action = self.act(next_obs)
-      next_feats = self.encode_features(next_obs, next_action)
-      next_q = np.dot(self.w, next_feats)
-      self.w = self.w + self.alpha * (reward + self.gamma * next_q - cur_q) * cur_feats
+      next_q = self.model(next_feats)[next_action]
+      loss = self.criterion(cur_q, reward + self.gamma * next_q)
 
-    # print(f"weights = {self.w}")
-    # print(f"weights norm = {np.linalg.norm(self.w)}")
-
+    loss.backward()
+    self.optimizer.step()
