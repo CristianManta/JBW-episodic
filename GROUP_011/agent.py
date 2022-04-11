@@ -34,11 +34,11 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, model_str='linear', encoding_method='dense'):
+  def __init__(self, env_specs, model_str='lenet', encoding_method='grid'):
     self.env_specs = env_specs
-    self.alpha = 0.01
-    self.gamma = 0.99
-    self.eps = 0.1
+    self.alpha = 0.001
+    self.gamma = 0.9
+    self.eps = 0.25
     self.num_actions = 4
 
     if encoding_method == 'dense':      
@@ -46,7 +46,7 @@ class Agent():
       self.encode_features = self.encode_features_dense
       self.action_position_embeds = [(7, 8), (6, 7), (8, 7), (7, 6)]
     elif encoding_method == 'sparse':      
-      self.input_size = 1582      
+      self.input_size = 900      
       self.encode_features = self.encode_features_sparse
     elif encoding_method == 'grid':
       self.encode_features = self.encode_features_grid
@@ -56,7 +56,7 @@ class Agent():
     elif model_str == 'linear':
       self.model = LinearModel(self.input_size)
 
-    self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.alpha)
+    self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.alpha, momentum=0.9, weight_decay=5e-4)
     self.criterion = nn.MSELoss()
 
   def load_weights(self, root_path):
@@ -94,14 +94,14 @@ class Agent():
     return feats.float()
 
   def encode_features_sparse(self, curr_obs):
-    curr_obs = torch.from_numpy(curr_obs)
-    feats = torch.concatenate((curr_obs[0].flatten(), curr_obs[1].flatten(), curr_obs[2].flatten()))
+    feats = torch.from_numpy(curr_obs[2]).flatten()
+    #feats = torch.concatenate((curr_obs[0].flatten(), curr_obs[1].flatten(), curr_obs[2].flatten()))
 
     return feats.float()
 
   def encode_features_grid(self, curr_obs):
     curr_obs = torch.from_numpy(curr_obs[2])
-    return curr_obs.reshape((1, 4, 15, 15)).float()
+    return curr_obs.reshape((15, 15, 4)).transpose(0, 2).unsqueeze(0).float()
 
   def act(self, curr_obs, mode='eval'):
     if mode == 'train':
@@ -119,10 +119,11 @@ class Agent():
     curr_feats = self.encode_features(curr_obs)
     cur_q = self.model(curr_feats)[action]
     if done:
+      reward = torch.as_tensor(reward)
       loss = self.criterion(cur_q, reward)
     else:
       next_feats = self.encode_features(next_obs)
-      next_action = self.act(next_obs)
+      next_action = self.act(next_obs, mode='train')
       next_q = self.model(next_feats)[next_action]
       loss = self.criterion(cur_q, reward + self.gamma * next_q)
 
