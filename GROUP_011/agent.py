@@ -2,6 +2,8 @@ import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
+import os
+import os.path as osp
 
 class LeNet(nn.Module):
   def __init__(self):
@@ -34,7 +36,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, model_str='lenet', encoding_method='grid'):
+  def __init__(self, env_specs, model_str='lenet', encoding_method='grid', save_freq=999, pretrained=False):
     self.env_specs = env_specs
     self.alpha = 0.001
     self.gamma = 0.9
@@ -51,18 +53,28 @@ class Agent():
     elif encoding_method == 'grid':
       self.encode_features = self.encode_features_grid
 
+    self.save_freq = save_freq
     if model_str == 'lenet':
       self.model = LeNet()
     elif model_str == 'linear':
       self.model = LinearModel(self.input_size)
 
+    if pretrained:
+      self.load_weights()
+    self.model.train()
+
     self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.alpha, momentum=0.9, weight_decay=5e-4)
     self.criterion = nn.MSELoss()
 
-  def load_weights(self, root_path):
+  def load_weights(self, path=osp.join("root_path", "weights.pth")):
     # Add root_path in front of the path of the saved network parameters
     # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters
-    pass
+    self.model.load_state_dict(torch.load(path))
+    
+
+  def save_weights(self, path=osp.join("root_path", "weights.pth")):
+    torch.save(self.model.state_dict(), path)
+
   
   def encode_features_dense(self, curr_obs):
     """
@@ -129,3 +141,5 @@ class Agent():
 
     loss.backward()
     self.optimizer.step()
+    if timestep % self.save_freq == 0:
+      self.save_weights()
