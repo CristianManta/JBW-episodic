@@ -36,7 +36,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, model_str='lenet', encoding_method='grid', save_freq=999, pretrained=False):
+  def __init__(self, env_specs, model_str='lenet', encoding_method='grid', save_freq=999, pretrained=True):
     self.env_specs = env_specs
     self.alpha = 0.001
     self.gamma = 0.9
