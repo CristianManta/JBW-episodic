@@ -36,7 +36,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, model_str='lenet', encoding_method='grid', do_save_weights=False, save_freq=999, pretrained=False):
+  def __init__(self, env_specs, model_str='lenet', encoding_method='grid', do_save_weights=True, save_freq=4999, pretrained=False):
     self.env_specs = env_specs
     self.alpha = 0.001
     self.gamma = 0.9
@@ -69,9 +69,10 @@ class Agent():
 
   def load_weights(self, root_path="./"):
     # Add root_path in front of the path of the saved network parameters
-    # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters
+    # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters    
     full_path = root_path + "weights.pth"
-    self.model.load_state_dict(torch.load(full_path))
+    if osp.exists(full_path):
+      self.model.load_state_dict(torch.load(full_path))
     
 
   def save_weights(self, root_path="./"):

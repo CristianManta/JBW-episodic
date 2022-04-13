@@ -114,8 +114,8 @@ if __name__ == '__main__':
   
   # Note these can be environment specific and you are free to experiment with what works best for you
   total_timesteps = 2000000
-  evaluation_freq = 1000
-  n_episodes_to_evaluate = 1
+  evaluation_freq = 5000
+  n_episodes_to_evaluate = 2
 
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
 
