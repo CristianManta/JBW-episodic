@@ -67,14 +67,15 @@ class Agent():
     self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.alpha, momentum=0.9, weight_decay=5e-4)
     self.criterion = nn.MSELoss()
 
-  def load_weights(self, path="weights.pth"):
+  def load_weights(self, root_path="weights.pth"):
     # Add root_path in front of the path of the saved network parameters
     # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters
-    self.model.load_state_dict(torch.load(path))
+    # self.model.load_state_dict(torch.load(root_path))
+    pass
     
 
-  def save_weights(self, path="weights.pth"):
-    torch.save(self.model.state_dict(), path)
+  def save_weights(self, root_path="weights.pth"):
+    torch.save(self.model.state_dict(), root_path)
 
   
   def encode_features_dense(self, curr_obs):
