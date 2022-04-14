@@ -20,7 +20,7 @@ from environments import JellyBeanEnv, MujocoEnv
 def evaluate_agent(agent, env, n_episodes_to_evaluate):
   '''Evaluates the agent for a provided number of episodes.'''
   array_of_acc_rewards = []
-  for _ in range(n_episodes_to_evaluate):
+  for i in range(n_episodes_to_evaluate):
     acc_reward = 0
     done = False
     curr_obs = env.reset()
@@ -55,7 +55,6 @@ def train_agent(agent,
   array_of_mean_acc_rewards = []
     
   while timestep < total_timesteps:
-
     done = False
     curr_obs = env.reset()
     while not done:    
@@ -69,6 +68,8 @@ def train_agent(agent,
         mean_acc_rewards = evaluate_agent(agent, env_eval, n_episodes_to_evaluate)
         print('timestep: {ts}, acc_reward: {acr:.2f}'.format(ts=timestep, acr=mean_acc_rewards))
         array_of_mean_acc_rewards.append(mean_acc_rewards)
+
+  print('Done')
 
   return array_of_mean_acc_rewards
 
@@ -113,9 +114,9 @@ if __name__ == '__main__':
   agent = agent_module.Agent(env_specs)
   
   # Note these can be environment specific and you are free to experiment with what works best for you
-  total_timesteps = 2000000
+  total_timesteps = 2e+6
   evaluation_freq = 5000
-  n_episodes_to_evaluate = 2
+  n_episodes_to_evaluate = 1
 
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
 

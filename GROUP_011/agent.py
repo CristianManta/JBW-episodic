@@ -64,14 +64,15 @@ class Agent():
   def __init__(self, env_specs, do_save_weights=True, save_freq=4999, pretrained=False):
     self.env_specs = env_specs
     self.encode_features = self.encode_features_grid
-    self.lr = 0.001
-    self.gamma = 0.99
+    self.lr = 0.00025
+    self.gamma = 0.9
     self.eps = 1
     self.final_eps = 0.1
+    self.eval_eps = 0.05
     self.eps_anneal_steps = 1e+5 #Timespan over which to decay epsilon
     self.buffer_capacity = 10000
     self.buffer = ReplayBuffer(self.buffer_capacity)
-    self.target_update_freq = 5000
+    self.target_update_freq = 1000
     self.batch_size = 32
     self.num_actions = 4
 
@@ -105,9 +106,13 @@ class Agent():
 
   def act(self, curr_obs, mode='eval'):
     if mode == 'train':
-      rand_action = np.random.binomial(1, self.eps)
-      if rand_action:
-        return self.env_specs['action_space'].sample()
+      eps = self.eps
+    elif mode == 'eval':
+      eps = self.eval_eps
+
+    rand_action = np.random.binomial(1, eps)
+    if rand_action:
+      return self.env_specs['action_space'].sample()
 
     feats = self.encode_features(curr_obs)
     q = self.model(feats)
@@ -128,9 +133,9 @@ class Agent():
     if timestep < self.buffer_capacity:
         #No learning until buffer is full
         return
-    elif timestep < self.eps_anneal_steps:
+    elif timestep <= self.eps_anneal_steps:
         #Annealing epsilon
-        self.eps = 0.9/(self.eps_anneal_steps - self.buffer_capacity) * timestep
+        self.eps = 1.1 - 0.9/(self.eps_anneal_steps - self.buffer_capacity) * timestep
 
     #Sample a batch
     batch = self.buffer.sample(self.batch_size)
@@ -144,8 +149,7 @@ class Agent():
             targets[i] = torch.as_tensor(reward)
         else:
             next_feats = self.encode_features(next_obs)
-            next_action = self.act(next_obs, mode='eval')
-            next_q = self.target_model(next_feats)[next_action]
+            next_q = torch.max(self.target_model(next_feats))
             targets[i] = reward + self.gamma * next_q
 
     loss = self.criterion(estimates, targets)
