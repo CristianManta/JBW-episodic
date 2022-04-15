@@ -8,27 +8,27 @@ from copy import deepcopy
 class DQN(nn.Module): # TODO: See if can process an entire batch in one pass
   def __init__(self):
     super().__init__()
-    scent_out_features = 4
+    scent_out_features = 32
     self.conv1 = nn.Conv2d(in_channels=4, out_channels=6, kernel_size=3)
     self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
     self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=3)
     self.fc1 = nn.Linear(in_features=64, out_features=32)
-    self.scent_fc = nn.Linear(in_features=3, out_features=scent_out_features)
-    self.fc2 = nn.Linear(in_features=32 + scent_out_features, out_features=4)    
+    # self.scent_fc = nn.Linear(in_features=3, out_features=scent_out_features)
+    self.fc2 = nn.Linear(in_features=35, out_features=4)
 
   def forward(self, inputs):
     scent = inputs[0]
     grid = inputs[1]
 
-    scent = self.scent_fc(scent)
+    # scent = self.scent_fc(scent)
     grid = self.pool(F.relu(self.conv1(grid)))
     grid = self.pool(F.relu(self.conv2(grid)))
     grid = torch.flatten(grid,1)
     grid = F.relu(self.fc1(grid))
 
     combined = torch.cat((grid, scent), dim=1)
-    grid = self.fc2(combined)
-    return torch.flatten(grid)
+    out = self.fc2(combined)
+    return torch.flatten(out)
 
 #Inspired by PyTorch tutorial: https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 class ReplayBuffer(object):
