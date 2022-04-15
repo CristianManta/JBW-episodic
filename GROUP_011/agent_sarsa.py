@@ -36,7 +36,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, model_str='lenet', encoding_method='grid', do_save_weights=True, save_freq=4999, pretrained=False):
+  def __init__(self, env_specs, model_str='lenet', encoding_method='grid', pretrained=False):
     self.env_specs = env_specs
     self.alpha = 0.001
     self.gamma = 0.9
@@ -53,8 +53,6 @@ class Agent():
     elif encoding_method == 'grid':
       self.encode_features = self.encode_features_grid
 
-    self.do_save_weights = do_save_weights
-    self.save_freq = save_freq
     if model_str == 'lenet':
       self.model = LeNet()
     elif model_str == 'linear':
@@ -145,5 +143,3 @@ class Agent():
 
     loss.backward()
     self.optimizer.step()
-    if (timestep % self.save_freq == 0) and self.do_save_weights:
-      self.save_weights()
