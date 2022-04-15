@@ -61,7 +61,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, pretrained=False):
+  def __init__(self, env_specs):
     self.env_specs = env_specs
     self.encode_features = self.encode_features_grid
     self.lr = 0.00025
@@ -81,8 +81,6 @@ class Agent():
     self.model2 = DQN()
     self.target_model1 = make_target_model(self.model1)
     self.target_model2 = make_target_model(self.model2)
-    if pretrained:
-      self.load_weights()
     self.model1.train()
     self.model2.train()
 
