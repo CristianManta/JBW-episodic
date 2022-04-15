@@ -66,7 +66,8 @@ class Agent():
     self.encode_features = self.encode_features_grid
     self.lr = 0.00025
     self.gamma = 0.9
-    self.eps = 1
+    self.initial_eps = 1
+    self.eps = self.initial_eps
     self.final_eps = 0.1
     self.eval_eps = 0.05
     self.eps_anneal_steps = 1e+5 #Timespan over which to decay epsilon
@@ -135,7 +136,7 @@ class Agent():
         return
     elif timestep <= self.eps_anneal_steps:
         #Annealing epsilon
-        self.eps = self.eps - (self.eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
+        self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
 
     #Sample a batch
     batch = self.buffer.sample(self.batch_size)
