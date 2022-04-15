@@ -66,7 +66,8 @@ class Agent():
     self.encode_features = self.encode_features_grid
     self.lr = 0.00025
     self.gamma = 0.9
-    self.eps = 1
+    self.initial_eps = 1
+    self.eps = self.initial_eps
     self.final_eps = 0.1
     self.eval_eps = 0.05
     self.eps_anneal_steps = 1e+5 #Timespan over which to decay epsilon
@@ -79,11 +80,14 @@ class Agent():
     self.do_save_weights = do_save_weights
     self.save_freq = save_freq
 
-    self.model = DQN()
-    self.target_model = make_target_model(self.model)
+    self.model1 = DQN()
+    self.model2 = DQN()
+    self.target_model1 = make_target_model(self.model)
+    self.target_model2 = make_target_model(self.model)
     if pretrained:
       self.load_weights()
-    self.model.train()
+    self.model1.train()
+    self.model2.train()
 
     self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr) # TODO: Maybe SGD is better
     self.criterion = nn.MSELoss()
@@ -91,14 +95,18 @@ class Agent():
   def load_weights(self, root_path="./"):
     # Add root_path in front of the path of the saved network parameters
     # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters    
-    full_path = root_path + "weights.pth"
-    if osp.exists(full_path):
-      self.model.load_state_dict(torch.load(full_path))
+    full_path1 = root_path + "weights1.pth"
+    full_path2 = root_path + "weights2.pth"
+    if osp.exists(full_path1) and osp.exists(full_path2):
+      self.model1.load_state_dict(torch.load(full_path1))
+      self.model2.load_state_dict(torch.load(full_path2))
     
 
   def save_weights(self, root_path="./"):
-    full_path = root_path + "weights.pth"
-    torch.save(self.model.state_dict(), full_path)
+    full_path1 = root_path + "weights1.pth"
+    full_path2 = root_path + "weights2.pth"
+    torch.save(self.model1.state_dict(), full_path1)
+    torch.save(self.model2.state_dict(), full_path2)
 
   def encode_features_grid(self, curr_obs):
     curr_obs = torch.from_numpy(curr_obs[2])
@@ -135,7 +143,7 @@ class Agent():
         return
     elif timestep <= self.eps_anneal_steps:
         #Annealing epsilon
-        self.eps = self.eps - (self.eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
+        self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
 
     #Sample a batch
     batch = self.buffer.sample(self.batch_size)
