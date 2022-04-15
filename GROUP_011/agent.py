@@ -38,7 +38,7 @@ class ReplayBuffer(object):
         else:
             self.size += 1
 
-    def sample(self, batch_size):
+    def sample(self, batch_size): # TODO: I think that when there are few samples available, it's best not to repeat batch_size times because the model would "overfit" by updating, say, 32 times on the same transition at the beginning
         sample = []
         for _ in range(batch_size):
           index = np.random.randint(low=0, high=self.size)
@@ -82,14 +82,15 @@ class Agent():
 
     self.model1 = DQN()
     self.model2 = DQN()
-    self.target_model1 = make_target_model(self.model)
-    self.target_model2 = make_target_model(self.model)
+    self.target_model1 = make_target_model(self.model1)
+    self.target_model2 = make_target_model(self.model2)
     if pretrained:
       self.load_weights()
     self.model1.train()
     self.model2.train()
 
-    self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr) # TODO: Maybe SGD is better
+    self.optimizer1 = torch.optim.Adam(self.model1.parameters(), lr=self.lr) # TODO: Maybe SGD is better
+    self.optimizer2 = torch.optim.Adam(self.model2.parameters(), lr=self.lr) # TODO: Maybe SGD is better
     self.criterion = nn.MSELoss()
 
   def load_weights(self, root_path="./"):
@@ -123,12 +124,13 @@ class Agent():
       return self.env_specs['action_space'].sample()
 
     feats = self.encode_features(curr_obs)
-    q = self.model(feats)
-    return torch.argmax(q)
+    q1, q2 = self.model1(feats), self.model2(feats)    
+    return torch.argmax(q1 + q2)
 
 
   def update(self, curr_obs, action, reward, next_obs, done, timestep):
-    self.optimizer.zero_grad()
+    self.optimizer1.zero_grad()
+    self.optimizer2.zero_grad()
     if done:
         next_obs = None
     #Add observation to replay buffer
