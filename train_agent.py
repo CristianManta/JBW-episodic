@@ -124,7 +124,7 @@ if __name__ == '__main__':
     print("")
     print(f"Batch {batch + 1} out of {int(total_timesteps / evaluation_freq)}:")
     new_score = train_agent(agent, env, env_eval, evaluation_freq, evaluation_freq, n_episodes_to_evaluate)[0]
-    learning_curve.extend(new_score)
+    learning_curve.append(new_score)
     if new_score > best_score:
       best_score = new_score
       torch.save(agent.model1.state_dict(), "weights1.pth")
