@@ -38,7 +38,7 @@ class ReplayBuffer(object):
         else:
             self.size += 1
 
-    def sample(self, batch_size): # TODO: I think that when there are few samples available, it's best not to repeat batch_size times because the model would "overfit" by updating, say, 32 times on the same transition at the beginning
+    def sample(self, batch_size):
         sample = []
         for _ in range(batch_size):
           index = np.random.randint(low=0, high=self.size)
@@ -138,7 +138,8 @@ class Agent():
 
     if (timestep % self.target_update_freq) == 0:
         #Update target network
-        self.target_model = make_target_model(self.model)
+        self.target_model1 = make_target_model(self.model1)
+        self.target_model2 = make_target_model(self.model2)
 
     if timestep < self.buffer_capacity:
         #No learning until buffer is full
@@ -152,14 +153,22 @@ class Agent():
     estimates = torch.zeros(self.batch_size)
     targets = torch.zeros(self.batch_size)
     for i, (curr_obs, action, reward, next_obs) in enumerate(batch):
+        update_model1 = np.random.binomial(1, 0.5)
+        if update_model1:
+          online_model = self.model1
+          target_model = self.target_model2
+        else:
+          online_model = self.model2
+          target_model = self.target_model1
+
         curr_feats = self.encode_features(curr_obs)
-        cur_q = self.model(curr_feats)[action]
+        cur_q = online_model(curr_feats)[action]
         estimates[i] = cur_q
         if next_obs is None:
             targets[i] = torch.as_tensor(reward)
         else:
             next_feats = self.encode_features(next_obs)
-            next_q = torch.max(self.target_model(next_feats))
+            next_q = torch.max(target_model(next_feats))
             targets[i] = reward + self.gamma * next_q
 
     loss = self.criterion(estimates, targets)
