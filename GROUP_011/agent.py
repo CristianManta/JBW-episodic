@@ -89,8 +89,7 @@ class Agent():
     self.model1.train()
     self.model2.train()
 
-    self.optimizer1 = torch.optim.Adam(self.model1.parameters(), lr=self.lr) # TODO: Maybe SGD is better
-    self.optimizer2 = torch.optim.Adam(self.model2.parameters(), lr=self.lr) # TODO: Maybe SGD is better
+    self.optimizer = torch.optim.Adam(list(self.model1.parameters()) + list(self.model2.parameters()), lr=self.lr) # TODO: Maybe SGD is better    
     self.criterion = nn.MSELoss()
 
   def load_weights(self, root_path="./"):
@@ -129,8 +128,7 @@ class Agent():
 
 
   def update(self, curr_obs, action, reward, next_obs, done, timestep):
-    self.optimizer1.zero_grad()
-    self.optimizer2.zero_grad()
+    self.optimizer.zero_grad()
     if done:
         next_obs = None
     #Add observation to replay buffer
