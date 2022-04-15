@@ -61,7 +61,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, pretrained=False):
+  def __init__(self, env_specs):
     self.env_specs = env_specs
     self.encode_features = self.encode_features_grid
     self.lr = 0.00025
@@ -78,8 +78,6 @@ class Agent():
 
     self.model = DQN()
     self.target_model = make_target_model(self.model)
-    if pretrained:
-      self.load_weights()
     self.model.train()
 
     self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)

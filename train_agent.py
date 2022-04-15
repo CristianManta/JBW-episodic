@@ -84,6 +84,7 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='')
   parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
   parser.add_argument('--seed', type=int, default=0, help='seed')
+  parser.add_argument('--pretrain', action='store_true', help='Whether to load weights or not')
   args = parser.parse_args()
 
   seed = args.seed
@@ -117,6 +118,8 @@ if __name__ == '__main__':
     env_specs = {'observation_space': env.observation_space, 'action_space': env.action_space}
   agent_module = importlib.import_module(args.group+'.agent')
   agent = agent_module.Agent(env_specs)
+  if args.pretrain:
+    agent.load_weights()
   
   # Note these can be environment specific and you are free to experiment with what works best for you
   total_timesteps = 2e+6
