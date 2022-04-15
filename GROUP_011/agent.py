@@ -9,7 +9,7 @@ class DQN(nn.Module):
   def __init__(self):
     super().__init__()
     self.conv1 = nn.Conv2d(in_channels=4, out_channels=6, kernel_size=3)
-    self.pool = nn.AvgPool2d(kernel_size=2, stride=2) # TODO: This may be removed at some point
+    self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
     self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=3)
     self.fc1 = nn.Linear(in_features=64, out_features=32)
     self.fc2 = nn.Linear(in_features=32, out_features=4)
@@ -61,13 +61,12 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, do_save_weights=True, save_freq=5000, pretrained=False):
+  def __init__(self, env_specs, do_save_weights=False, save_freq=5000, pretrained=False):
     self.env_specs = env_specs
     self.encode_features = self.encode_features_grid
     self.lr = 0.00025
     self.gamma = 0.9
-    self.initial_eps = 1
-    self.eps = self.initial_eps
+    self.eps = 1
     self.final_eps = 0.1
     self.eval_eps = 0.05
     self.eps_anneal_steps = 1e+5 #Timespan over which to decay epsilon
@@ -86,7 +85,7 @@ class Agent():
       self.load_weights()
     self.model.train()
 
-    self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr) # TODO: Maybe SGD is better
+    self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
     self.criterion = nn.MSELoss()
 
   def load_weights(self, root_path="./"):
@@ -136,7 +135,7 @@ class Agent():
         return
     elif timestep <= self.eps_anneal_steps:
         #Annealing epsilon
-        self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
+        self.eps = 1.1 - 0.9/(self.eps_anneal_steps - self.buffer_capacity) * timestep
 
     #Sample a batch
     batch = self.buffer.sample(self.batch_size)
