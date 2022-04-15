@@ -61,7 +61,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, do_save_weights=False, save_freq=5000, pretrained=False):
+  def __init__(self, env_specs, pretrained=False):
     self.env_specs = env_specs
     self.encode_features = self.encode_features_grid
     self.lr = 0.00025
@@ -75,9 +75,6 @@ class Agent():
     self.target_update_freq = 1000
     self.batch_size = 32
     self.num_actions = 4
-
-    self.do_save_weights = do_save_weights
-    self.save_freq = save_freq
 
     self.model = DQN()
     self.target_model = make_target_model(self.model)
@@ -155,6 +152,3 @@ class Agent():
     loss = self.criterion(estimates, targets)
     loss.backward()
     self.optimizer.step()
-
-    if (timestep % self.save_freq == 0) and self.do_save_weights:
-      self.save_weights()
