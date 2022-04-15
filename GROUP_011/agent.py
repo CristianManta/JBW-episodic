@@ -61,7 +61,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, do_save_weights=True, save_freq=4999, pretrained=False):
+  def __init__(self, env_specs):
     self.env_specs = env_specs
     self.encode_features = self.encode_features_grid
     self.lr = 0.001
@@ -75,13 +75,8 @@ class Agent():
     self.batch_size = 32
     self.num_actions = 4
 
-    self.do_save_weights = do_save_weights
-    self.save_freq = save_freq
-
     self.model = DQN()
     self.target_model = make_target_model(self.model)
-    if pretrained:
-      self.load_weights()
     self.model.train()
 
     self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
@@ -151,6 +146,3 @@ class Agent():
     loss = self.criterion(estimates, targets)
     loss.backward()
     self.optimizer.step()
-
-    if (timestep % self.save_freq == 0) and self.do_save_weights:
-      self.save_weights()

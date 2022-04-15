@@ -20,7 +20,7 @@ from environments import JellyBeanEnv, MujocoEnv
 def evaluate_agent(agent, env, n_episodes_to_evaluate):
   '''Evaluates the agent for a provided number of episodes.'''
   array_of_acc_rewards = []
-  for _ in range(n_episodes_to_evaluate):
+  for i in range(n_episodes_to_evaluate):
     acc_reward = 0
     done = False
     curr_obs = env.reset()
@@ -56,7 +56,6 @@ def train_agent(agent,
   best_reward = 0
     
   while timestep < total_timesteps:
-
     done = False
     curr_obs = env.reset()
     while not done:    
@@ -75,6 +74,8 @@ def train_agent(agent,
           print("Saving weights...")
           agent.save_weights()
 
+  print('Done')
+
   return array_of_mean_acc_rewards
 
 
@@ -83,6 +84,7 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='')
   parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
   parser.add_argument('--seed', type=int, default=0, help='seed')
+  parser.add_argument('--pretrain', action='store_true', help='Whether to load weights or not')
   args = parser.parse_args()
 
   seed = args.seed
@@ -116,6 +118,8 @@ if __name__ == '__main__':
     env_specs = {'observation_space': env.observation_space, 'action_space': env.action_space}
   agent_module = importlib.import_module(args.group+'.agent')
   agent = agent_module.Agent(env_specs)
+  if args.pretrain:
+    agent.load_weights()
   
   # Note these can be environment specific and you are free to experiment with what works best for you
   total_timesteps = 2e+6
