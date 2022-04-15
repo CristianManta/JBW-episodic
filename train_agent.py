@@ -116,7 +116,17 @@ if __name__ == '__main__':
   # Note these can be environment specific and you are free to experiment with what works best for you
   total_timesteps = 2e+6
   evaluation_freq = 5000
-  n_episodes_to_evaluate = 1
+  n_episodes_to_evaluate = 1  
 
-  learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
+  learning_curve = []
+  best_score = 0
+  for batch in range(int(total_timesteps / evaluation_freq)):
+    print("")
+    print(f"Batch {batch + 1} out of {int(total_timesteps / evaluation_freq)}:")
+    new_score = train_agent(agent, env, env_eval, evaluation_freq, evaluation_freq, n_episodes_to_evaluate)[0]
+    learning_curve.extend(new_score)
+    if new_score > best_score:
+      best_score = new_score
+      torch.save(agent.model1.state_dict(), "weights1.pth")
+      torch.save(agent.model2.state_dict(), "weights2.pth")
 

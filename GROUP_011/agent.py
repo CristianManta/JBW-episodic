@@ -61,7 +61,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, do_save_weights=True, save_freq=5000, pretrained=False):
+  def __init__(self, env_specs, do_save_weights=False, save_freq=5000, pretrained=False):
     self.env_specs = env_specs
     self.encode_features = self.encode_features_grid
     self.lr = 0.00025
