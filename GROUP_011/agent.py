@@ -150,10 +150,12 @@ class Agent():
     #Sample a batch
     curr_obs, actions, rewards, next_obs = self.buffer.sample(self.batch_size)
 
-    curr_obs.to(self.device)
+    actions = actions.to(self.device)
+    rewards = rewards.to(self.device)
+    curr_obs = curr_obs.to(self.device)
     preds = self.model(curr_obs)
     estimates = preds.gather(1, actions.view(-1,1)).flatten()
-    next_obs.to(self.device)
+    next_obs = next_obs.to(self.device)
     targets = rewards + self.gamma * torch.max(self.model(next_obs), dim=1)[0]
 
     loss = self.criterion(estimates, targets)
