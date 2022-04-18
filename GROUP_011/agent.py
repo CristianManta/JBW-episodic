@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -8,27 +9,38 @@ from copy import deepcopy
 class DQN(nn.Module): # TODO: See if can process an entire batch in one pass
   def __init__(self):
     super().__init__()
-    scent_out_features = 32
     self.conv1 = nn.Conv2d(in_channels=4, out_channels=6, kernel_size=3)
     self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
     self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=3)
     self.fc1 = nn.Linear(in_features=64, out_features=32)
-    # self.scent_fc = nn.Linear(in_features=3, out_features=scent_out_features)
     self.fc2 = nn.Linear(in_features=35, out_features=4)
 
-  def forward(self, inputs):
-    scent = inputs[0]
-    grid = inputs[1]
-
-    # scent = self.scent_fc(scent)
-    grid = self.pool(F.relu(self.conv1(grid)))
-    grid = self.pool(F.relu(self.conv2(grid)))
-    grid = torch.flatten(grid,1)
-    grid = F.relu(self.fc1(grid))
-
-    combined = torch.cat((grid, scent), dim=1)
+  def forward(self, scent, feats):
+    feats = self.pool(F.relu(self.conv1(feats)))
+    feats = self.pool(F.relu(self.conv2(feats)))
+    feats = torch.flatten(feats,1)
+    feats = F.relu(self.fc1(feats))
+    combined = torch.cat((feats, scent), dim=1)
     out = self.fc2(combined)
-    return torch.flatten(out)
+    return out
+
+class State():
+  def __init__(self, obs):
+    self.scent = torch.tensor(obs[0])
+    self.vision = torch.tensor(obs[1])
+    self.features = torch.tensor(obs[2])
+
+  def get_scent(self):
+    return self.scent
+
+  def get_vision(self):
+    return self.vision
+
+  def get_features(self):
+    return self.features
+
+  def encode(self):
+    return [self.scent.unsqueeze(0), self.features.reshape((15, 15, 4)).transpose(0, 2).unsqueeze(0).float()]
 
 #Inspired by PyTorch tutorial: https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 class ReplayBuffer(object):
@@ -47,11 +59,15 @@ class ReplayBuffer(object):
             self.size += 1
 
     def sample(self, batch_size):
-        sample = []
-        for _ in range(batch_size):
-          index = np.random.randint(low=0, high=self.size)
-          sample.append(self.buffer[index])
-        return sample
+        sample = random.sample(self.buffer, batch_size)
+        curr_scent_batch = torch.cat([a[0].encode()[0] for a in sample])
+        curr_feats_batch = torch.cat([a[0].encode()[1] for a in sample])
+        action_batch = torch.stack([torch.tensor(a[1]) for a in sample])
+        reward_batch = torch.stack([torch.tensor(a[2]) for a in sample])
+        next_scent_batch = torch.cat([a[3].encode()[0] for a in sample])
+        next_feats_batch = torch.cat([a[3].encode()[1] for a in sample])
+
+        return curr_scent_batch, curr_feats_batch, action_batch, reward_batch, next_scent_batch, next_feats_batch
 
     def __len__(self):
         return self.size
@@ -71,7 +87,6 @@ class Agent():
 
   def __init__(self, env_specs):
     self.env_specs = env_specs
-    self.encode_features = self.encode_features_grid
     self.lr = 0.00025
     self.gamma = 0.9
     self.initial_eps = 1
@@ -104,11 +119,6 @@ class Agent():
     full_path = root_path + "weights.pth"
     torch.save(self.model.state_dict(), full_path)
 
-  def encode_features_grid(self, curr_obs):
-    scent = torch.from_numpy(curr_obs[0])
-    grid = torch.from_numpy(curr_obs[2])
-    return (scent.unsqueeze(0).float(), grid.reshape((15, 15, 4)).transpose(0, 2).unsqueeze(0).float())
-
   def act(self, curr_obs, mode='eval'):
     if mode == 'train':
       eps = self.eps
@@ -119,17 +129,15 @@ class Agent():
     if rand_action:
       return self.env_specs['action_space'].sample()
 
-    feats = self.encode_features(curr_obs)
-    q = self.model(feats)
+    inputs = State(curr_obs).encode()
+    q = self.model(inputs[0], inputs[1])
     return torch.argmax(q)
 
 
   def update(self, curr_obs, action, reward, next_obs, done, timestep):
     self.optimizer.zero_grad()
-    if done:
-        next_obs = None
-    #Add observation to replay buffer
-    self.buffer.add(curr_obs, action, reward, next_obs)
+    if not done:
+      self.buffer.add(State(curr_obs), action, reward, State(next_obs))
 
     if (timestep % self.target_update_freq) == 0:
         #Update target network
@@ -143,19 +151,11 @@ class Agent():
         self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
 
     #Sample a batch
-    batch = self.buffer.sample(self.batch_size)
-    estimates = torch.zeros(self.batch_size)
-    targets = torch.zeros(self.batch_size)
-    for i, (curr_obs, action, reward, next_obs) in enumerate(batch):
-        curr_feats = self.encode_features(curr_obs)
-        cur_q = self.model(curr_feats)[action]
-        estimates[i] = cur_q
-        if next_obs is None:
-            targets[i] = torch.as_tensor(reward)
-        else:
-            next_feats = self.encode_features(next_obs)
-            next_q = torch.max(self.target_model(next_feats))
-            targets[i] = reward + self.gamma * next_q
+    curr_scent, curr_feats, actions, rewards, next_scent, next_feats = self.buffer.sample(self.batch_size)
+
+    preds = self.model(curr_scent, curr_feats)
+    estimates = preds.gather(1, actions.view(-1,1)).flatten()
+    targets = rewards + self.gamma * torch.max(self.model(next_scent, next_feats), dim=1)[0]
 
     loss = self.criterion(estimates, targets)
     loss.backward()

@@ -123,7 +123,7 @@ if __name__ == '__main__':
   
   # Note these can be environment specific and you are free to experiment with what works best for you
   total_timesteps = 2e+6
-  evaluation_freq = 2000
+  evaluation_freq = 5000
   n_episodes_to_evaluate = 1
 
   learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
