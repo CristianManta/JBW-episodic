@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import os.path as osp
 from copy import deepcopy
 
-class DQN(nn.Module): # TODO: See if can process an entire batch in one pass
+class DQN(nn.Module):
   def __init__(self):
     super().__init__()
     self.conv1 = nn.Conv2d(in_channels=4, out_channels=6, kernel_size=3)
@@ -26,15 +26,15 @@ class DQN(nn.Module): # TODO: See if can process an entire batch in one pass
 
 class State():
   def __init__(self, obs):
-    self.vision = torch.tensor(obs[0])
-    self.scent = torch.tensor(obs[1])
+    self.scent = torch.tensor(obs[0])
+    self.vision = torch.tensor(obs[1])
     self.features = torch.tensor(obs[2])
-
-  def get_vision(self):
-    return self.vision
 
   def get_scent(self):
     return self.scent
+
+  def get_vision(self):
+    return self.vision
 
   def get_features(self):
     return self.features
@@ -90,10 +90,7 @@ class Agent():
     self.batch_size = 32
     self.num_actions = 4
 
-    self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
     self.model = DQN()
-    self.model.to(self.device)
     self.model.train()
 
     self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
@@ -103,7 +100,6 @@ class Agent():
     self.target_model = deepcopy(self.model)
     for param in self.target_model.parameters():
         param.requires_grad = False
-    self.target_model.to(self.device)
 
   def load_weights(self, root_path="./"):
     # Add root_path in front of the path of the saved network parameters
@@ -126,7 +122,7 @@ class Agent():
     if rand_action:
       return self.env_specs['action_space'].sample()
 
-    feats = State(curr_obs).encode().to(self.device)
+    feats = State(curr_obs).encode()
     q = self.model(feats)
     return torch.argmax(q)
 
@@ -150,12 +146,8 @@ class Agent():
     #Sample a batch
     curr_obs, actions, rewards, next_obs = self.buffer.sample(self.batch_size)
 
-    actions = actions.to(self.device)
-    rewards = rewards.to(self.device)
-    curr_obs = curr_obs.to(self.device)
     preds = self.model(curr_obs)
     estimates = preds.gather(1, actions.view(-1,1)).flatten()
-    next_obs = next_obs.to(self.device)
     targets = rewards + self.gamma * torch.max(self.model(next_obs), dim=1)[0]
 
     loss = self.criterion(estimates, targets)
