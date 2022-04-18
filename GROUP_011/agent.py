@@ -88,7 +88,7 @@ class Agent():
     self.buffer_capacity = 10000
     self.buffer = ReplayBuffer(self.buffer_capacity)    
     self.batch_size = 32
-    self.target_update_freq = 1000 / self.batch_size
+    self.target_update_freq = 1000
     self.num_actions = 4
 
     self.model1 = DQN()
