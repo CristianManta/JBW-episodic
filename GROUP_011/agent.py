@@ -155,7 +155,7 @@ class Agent():
 
     preds = self.model(curr_scent, curr_feats)
     estimates = preds.gather(1, actions.view(-1,1)).flatten()
-    targets = rewards + self.gamma * torch.max(self.model(next_scent, next_feats), dim=1)[0]
+    targets = rewards + self.gamma * torch.max(self.target_model(next_scent, next_feats), dim=1)[0]
 
     loss = self.criterion(estimates, targets)
     loss.backward()
