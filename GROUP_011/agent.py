@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -19,8 +20,26 @@ class DQN(nn.Module):
     x = self.pool(F.relu(self.conv2(x)))
     x = torch.flatten(x,1)
     x = F.relu(self.fc1(x))
-    x = self.fc2(x)
-    return torch.flatten(x)
+    out = self.fc2(x)
+    return out
+
+class State():
+  def __init__(self, obs):
+    self.scent = torch.tensor(obs[0])
+    self.vision = torch.tensor(obs[1])
+    self.features = torch.tensor(obs[2])
+
+  def get_scent(self):
+    return self.scent
+
+  def get_vision(self):
+    return self.vision
+
+  def get_features(self):
+    return self.features
+
+  def encode(self):
+    return self.features.reshape((15, 15, 4)).transpose(0, 2).unsqueeze(0).float()
 
 #Inspired by PyTorch tutorial: https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 class ReplayBuffer(object):
@@ -39,21 +58,17 @@ class ReplayBuffer(object):
             self.size += 1
 
     def sample(self, batch_size):
-        sample = []
-        for _ in range(batch_size):
-          index = np.random.randint(low=0, high=self.size)
-          sample.append(self.buffer[index])
-        return sample
+        sample = random.sample(self.buffer, batch_size)
+        curr_obs_batch = torch.cat([a[0].encode() for a in sample])
+        action_batch = torch.stack([torch.tensor(a[1]) for a in sample])
+        reward_batch = torch.stack([torch.tensor(a[2]) for a in sample])
+        next_obs_batch = torch.cat([a[3].encode() for a in sample])
+
+        return curr_obs_batch, action_batch, reward_batch, next_obs_batch
 
     def __len__(self):
         return self.size
 
-def make_target_model(model):
-    target_model = deepcopy(model)
-    for param in target_model.parameters():
-        param.requires_grad = False
-
-    return target_model
 
 class Agent():
   '''The agent class that is to be filled.
@@ -62,8 +77,7 @@ class Agent():
   '''
 
   def __init__(self, env_specs):
-    self.env_specs = env_specs
-    self.encode_features = self.encode_features_grid
+    self.env_specs = env_specs    
     self.lr = 0.00025
     self.gamma = 0.9
     self.initial_eps = 1
@@ -72,20 +86,28 @@ class Agent():
     self.eval_eps = 0.05
     self.eps_anneal_steps = 1e+5 #Timespan over which to decay epsilon
     self.buffer_capacity = 10000
-    self.buffer = ReplayBuffer(self.buffer_capacity)
-    self.target_update_freq = 1000
+    self.buffer = ReplayBuffer(self.buffer_capacity)    
     self.batch_size = 32
+    self.target_update_freq = 1000 / self.batch_size
     self.num_actions = 4
 
     self.model1 = DQN()
     self.model2 = DQN()
-    self.target_model1 = make_target_model(self.model1)
-    self.target_model2 = make_target_model(self.model2)
+
     self.model1.train()
     self.model2.train()
 
     self.optimizer = torch.optim.Adam(list(self.model1.parameters()) + list(self.model2.parameters()), lr=self.lr) # TODO: Maybe SGD is better    
     self.criterion = nn.MSELoss()
+
+  def make_target_models(self):
+    self.target_model1 = deepcopy(self.model1)
+    self.target_model2 = deepcopy(self.model2)
+    for param in self.target_model1.parameters():
+        param.requires_grad = False
+    for param in self.target_model2.parameters():
+        param.requires_grad = False
+
 
   def load_weights(self, root_path="./"):
     # Add root_path in front of the path of the saved network parameters
@@ -103,9 +125,6 @@ class Agent():
     torch.save(self.model1.state_dict(), full_path1)
     torch.save(self.model2.state_dict(), full_path2)
 
-  def encode_features_grid(self, curr_obs):
-    curr_obs = torch.from_numpy(curr_obs[2])
-    return curr_obs.reshape((15, 15, 4)).transpose(0, 2).unsqueeze(0).float()
 
   def act(self, curr_obs, mode='eval'):
     if mode == 'train':
@@ -117,22 +136,20 @@ class Agent():
     if rand_action:
       return self.env_specs['action_space'].sample()
 
-    feats = self.encode_features(curr_obs)
+    feats = State(curr_obs).encode()
     q1, q2 = self.model1(feats), self.model2(feats)    
     return torch.argmax(q1 + q2)
 
 
   def update(self, curr_obs, action, reward, next_obs, done, timestep):
     self.optimizer.zero_grad()
-    if done:
-        next_obs = None
-    #Add observation to replay buffer
-    self.buffer.add(curr_obs, action, reward, next_obs)
+    if not done:
+      #Add observation to replay buffer
+      self.buffer.add(State(curr_obs), action, reward, State(next_obs))
 
     if (timestep % self.target_update_freq) == 0:
         #Update target network
-        self.target_model1 = make_target_model(self.model1)
-        self.target_model2 = make_target_model(self.model2)
+        self.make_target_models()
 
     if timestep < self.buffer_capacity:
         #No learning until buffer is full
@@ -142,27 +159,18 @@ class Agent():
         self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
 
     #Sample a batch
-    batch = self.buffer.sample(self.batch_size)
-    estimates = torch.zeros(self.batch_size)
-    targets = torch.zeros(self.batch_size)
-    for i, (curr_obs, action, reward, next_obs) in enumerate(batch):
-        update_model1 = np.random.binomial(1, 0.5)
-        if update_model1:
-          online_model = self.model1
-          target_model = self.target_model2
-        else:
-          online_model = self.model2
-          target_model = self.target_model1
-
-        curr_feats = self.encode_features(curr_obs)
-        cur_q = online_model(curr_feats)[action]
-        estimates[i] = cur_q
-        if next_obs is None:
-            targets[i] = torch.as_tensor(reward)
-        else:
-            next_feats = self.encode_features(next_obs)
-            next_q = torch.max(target_model(next_feats))
-            targets[i] = reward + self.gamma * next_q
+    curr_obs, actions, rewards, next_obs = self.buffer.sample(self.batch_size)
+    update_model1 = np.random.binomial(1, 0.5)
+    if update_model1:
+      online_model = self.model1
+      target_model = self.target_model2
+    else:
+      online_model = self.model2
+      target_model = self.target_model1
+    
+    preds = online_model(curr_obs)
+    estimates = preds.gather(1, actions.view(-1, 1)).flatten()
+    targets = rewards + self.gamma * torch.max(target_model(next_obs), dim=1)[0]
 
     loss = self.criterion(estimates, targets)
     loss.backward()
