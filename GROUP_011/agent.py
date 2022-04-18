@@ -139,7 +139,7 @@ class Agent():
         return
     elif timestep <= self.eps_anneal_steps:
         #Annealing epsilon
-        self.eps = 1.1 - 0.9/(self.eps_anneal_steps - self.buffer_capacity) * timestep
+        self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
 
     #Sample a batch
     batch = self.buffer.sample(self.batch_size)
