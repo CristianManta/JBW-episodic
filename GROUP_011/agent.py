@@ -103,6 +103,14 @@ class Agent():
     self.optimizer = torch.optim.Adam(list(self.model1.parameters()) + list(self.model2.parameters()), lr=self.lr) # TODO: Maybe SGD is better    
     self.criterion = nn.MSELoss()
 
+  def Q(self, curr_obs):
+    """
+    Returns the maximum Q(S, A) given S
+    """
+    inputs = State(curr_obs).encode()
+    q1, q2 = self.model1(inputs[0], inputs[1]), self.model2(inputs[0], inputs[1])
+    return torch.max(q1 + q2).item()
+
   def make_target_models(self):
     self.target_model1 = deepcopy(self.model1)
     self.target_model2 = deepcopy(self.model2)
