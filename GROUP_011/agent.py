@@ -6,14 +6,14 @@ import torch.nn.functional as F
 import os.path as osp
 from copy import deepcopy
 
-class DQN(nn.Module):
+class DQN(nn.Module): # TODO: See if can process an entire batch in one pass
   def __init__(self):
     super().__init__()
     self.conv1 = nn.Conv2d(in_channels=4, out_channels=6, kernel_size=3)
-    self.pool = nn.AvgPool2d(kernel_size=2, stride=2) # TODO: This may be removed at some point
+    self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
     self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=3)
     self.fc1 = nn.Linear(in_features=64, out_features=32)
-    self.fc2 = nn.Linear(in_features=32, out_features=4)
+    self.fc2 = nn.Linear(in_features=35, out_features=4)
 
   def forward(self, scent, feats):
     feats = self.pool(F.relu(self.conv1(feats)))
