@@ -35,7 +35,7 @@ class Agent():
      want to this class.
   '''
 
-  def __init__(self, env_specs, model_str='cnn'):
+  def __init__(self, env_specs, model_str='linear'):
     self.env_specs = env_specs
     self.lr = 0.001
     self.gamma = 0.9
@@ -49,8 +49,6 @@ class Agent():
       self.input_size = 900
       self.model = LinearModel(self.input_size)
       self.encode_features = self.encode_features_sparse
-
-    self.model.train()
 
     self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
     self.criterion = nn.MSELoss()
@@ -93,10 +91,8 @@ class Agent():
       reward = torch.as_tensor(reward)
       loss = self.criterion(cur_q, reward)
     else:
-      with torch.no_grad():
-        next_feats = self.encode_features(next_obs)
-        next_action = self.act(next_obs)
-        next_q = self.model(next_feats)[next_action]
+      next_feats = self.encode_features(next_obs)
+      next_q = torch.max(self.model(next_feats))
       loss = self.criterion(cur_q, reward + self.gamma * next_q)
 
     loss.backward()
