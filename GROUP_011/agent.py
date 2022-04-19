@@ -103,7 +103,7 @@ class Agent():
     self.optimizer = torch.optim.Adam(list(self.model1.parameters()) + list(self.model2.parameters()), lr=self.lr) # TODO: Maybe SGD is better    
     self.criterion = nn.MSELoss()
 
-  def Q(self, curr_obs):
+  def max_Q(self, curr_obs):
     """
     Returns the maximum Q(S, A) given S
     """
