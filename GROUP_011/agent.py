@@ -15,14 +15,16 @@ class CNN(nn.Module):
     self.fc_policy = nn.Linear(in_features=32, out_features=4)
     self.fc_value = nn.Linear(in_features=32, out_features=1)
 
-  def forward(self, x):
+  def forward(self, x, head):
     x = self.pool(F.relu(self.conv1(x)))
     x = self.pool(F.relu(self.conv2(x)))
     x = torch.flatten(x,1)
     x = F.relu(self.fc1(x))
-    policy = F.softmax(self.fc_policy(x).flatten(), dim=-1)
-    value = self.fc_value(x)
-    return policy, value
+    if head == 'policy':
+      x = F.softmax(self.fc_policy(x), dim=-1)
+    if head == 'value':
+      x = self.fc_value(x)
+    return x
 
 class Agent():
   '''The agent class that is to be filled.
@@ -34,14 +36,12 @@ class Agent():
     self.env_specs = env_specs
     self.lr = 0.001
     self.gamma = 0.9
-    self.eps = 0.1
     self.num_actions = 4
     self.n = 20 #Number of timesteps in loss and gradient computation
-    self.c = 1
 
-    self.values = torch.zeros(self.n)
+    self.states = torch.zeros((self.n, 4, 15, 15))
+    self.actions = torch.zeros(self.n, dtype=torch.int64)
     self.rewards = torch.zeros(self.n)
-    self.policies = torch.zeros(self.n)
 
     if model_str == 'cnn':
       self.model = CNN()
@@ -72,37 +72,39 @@ class Agent():
       return self.env_specs['action_space'].sample()
 
     feats = self.encode_features(curr_obs)
-    policy, value = self.model(feats)
+    policy = self.model(feats, 'policy')
     action_sampler = Categorical(policy)
     return action_sampler.sample()
 
 
   def update(self, curr_obs, action, reward, next_obs, done, timestep):
-    print(timestep)
-    torch.autograd.set_detect_anomaly(True)
     t = timestep % self.n
     
     curr_feats = self.encode_features(curr_obs)
-    policy, self.values[t] = self.model(curr_feats)
-    self.policies[t] = policy[action]
+    self.states[t] = curr_feats
+    self.actions[t] = torch.tensor(action)
     self.rewards[t] = reward * self.gamma**t
 
     if t == self.n - 1:
-      advantages = torch.zeros(self.n)
+      self.optimizer.zero_grad()
       rets = torch.zeros(self.n)
+      policies = self.model(self.states, 'policy')
+      with torch.no_grad():
+        values = self.model(self.states, 'value')
+      policies = policies.gather(1, self.actions.view(-1,1)).flatten()
       next_feats = self.encode_features(next_obs)
-      _, final_value = self.model(next_feats)
+      with torch.no_grad():
+        final_value = self.model(next_feats, 'value')
       for i in range(self.n):
         rets[i] = torch.sum(self.rewards[i:]/(self.gamma**i)) + self.gamma**(self.n - i) * final_value
-      advantages = rets - self.values
+      advantages = rets - values
+
+      policy_loss = torch.sum(-torch.log(policies) * advantages) 
 
       self.optimizer.zero_grad()
-      for param in self.model.fc_value.parameters():
-        param.requires_grad = False
-      policy_loss = torch.sum(-torch.log(self.policies) * advantages) 
-      policy_loss.backward(retain_graph=True)
-      for param in self.model.fc_value.parameters():
-        param.requires_grad = True
+      values = self.model(self.states, 'value')
+      advantages = rets - values
       value_loss = torch.sum(advantages)**2
-      value_loss.backward(retain_graph=True)
+      policy_loss.backward()
+      value_loss.backward()
       self.optimizer.step()
