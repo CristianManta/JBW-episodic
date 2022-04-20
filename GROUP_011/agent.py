@@ -149,7 +149,11 @@ class Agent():
     return torch.argmax(q1 + q2)
 
 
-  def update(self, curr_obs, action, reward, next_obs, done, timestep, use_replay=True):    
+  def update(self, curr_obs, action, reward, next_obs, done, timestep, use_replay=True, use_target_model=True):
+    """
+    use_target_model: if True, will use a separate target model to model the targets. Otherwise, will alternate between the online networks 
+    (which receive gradient updates) for Q1 and Q2 to model the estimates and the targets
+    """    
     self.optimizer.zero_grad()
     if use_replay:
       if not done:
@@ -160,7 +164,7 @@ class Agent():
           #No learning until buffer is full
           return
 
-    if (timestep % self.target_update_freq) == 0:
+    if use_target_model and (timestep % self.target_update_freq) == 0:
         #Update target network
         self.make_target_models()
 
@@ -179,13 +183,20 @@ class Agent():
     update_model1 = np.random.binomial(1, 0.5)
     if update_model1:
       online_model = self.model1
-      target_model = self.target_model2
+      if use_target_model:
+        target_model = self.target_model2
+      else:
+        target_model = self.model2
+
     else:
       online_model = self.model2
-      target_model = self.target_model1
+      if use_target_model:
+        target_model = self.target_model1
+      else:
+        target_model = self.model1
     
     preds = online_model(curr_obs)
-    estimates = preds.gather(1, actions.view(-1, 1)).flatten()
+    estimates = preds.gather(1, actions.view(-1, 1)).flatten()    
     targets = rewards + self.gamma * torch.max(target_model(next_obs), dim=1)[0]
 
     loss = self.criterion(estimates, targets)
