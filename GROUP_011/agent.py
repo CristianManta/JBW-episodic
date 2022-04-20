@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch.distributions.categorical import Categorical
 import os.path as osp
 
 class CNN(nn.Module):
@@ -11,23 +12,17 @@ class CNN(nn.Module):
     self.pool = nn.AvgPool2d(kernel_size=2, stride=2)
     self.conv2 = nn.Conv2d(in_channels=6, out_channels=16, kernel_size=3)
     self.fc1 = nn.Linear(in_features=64, out_features=32)
-    self.fc2 = nn.Linear(in_features=32, out_features=4)
+    self.fc_policy = nn.Linear(in_features=32, out_features=4)
+    self.fc_value = nn.Linear(in_features=32, out_features=1)
 
   def forward(self, x):
     x = self.pool(F.relu(self.conv1(x)))
     x = self.pool(F.relu(self.conv2(x)))
     x = torch.flatten(x,1)
     x = F.relu(self.fc1(x))
-    x = self.fc2(x)
-    return torch.flatten(x)
-
-class LinearModel(nn.Module):
-  def __init__(self, input_size):
-    super().__init__()
-    self.w = nn.Linear(in_features=input_size, out_features=4)
-
-  def forward(self, x):
-    return torch.flatten(self.w(x))
+    policy = F.softmax(self.fc_policy(x).flatten(), dim=-1)
+    value = self.fc_value(x)
+    return policy, value
 
 class Agent():
   '''The agent class that is to be filled.
@@ -41,19 +36,20 @@ class Agent():
     self.gamma = 0.9
     self.eps = 0.1
     self.num_actions = 4
+    self.n = 20 #Number of timesteps in loss and gradient computation
+    self.c = 1
+
+    self.values = torch.zeros(self.n)
+    self.rewards = torch.zeros(self.n)
+    self.policies = torch.zeros(self.n)
 
     if model_str == 'cnn':
       self.model = CNN()
       self.encode_features = self.encode_features_grid
-    elif model_str == 'linear':
-      self.input_size = 900
-      self.model = LinearModel(self.input_size)
-      self.encode_features = self.encode_features_sparse
 
     self.model.train()
 
     self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-    self.criterion = nn.MSELoss()
 
   def load_weights(self, root_path="./"):
     # Add root_path in front of the path of the saved network parameters
@@ -66,11 +62,6 @@ class Agent():
     full_path = root_path + "weights.pth"
     torch.save(self.model.state_dict(), full_path)
 
-  def encode_features_sparse(self, curr_obs):
-    feats = torch.tensor(curr_obs[2]).flatten()
-
-    return feats.float()
-
   def encode_features_grid(self, curr_obs):
     curr_obs = torch.from_numpy(curr_obs[2])
     return curr_obs.reshape((15, 15, 4)).transpose(0, 2).unsqueeze(0).float()
@@ -81,23 +72,37 @@ class Agent():
       return self.env_specs['action_space'].sample()
 
     feats = self.encode_features(curr_obs)
-    q = self.model(feats)
-    return torch.argmax(q)
+    policy, value = self.model(feats)
+    action_sampler = Categorical(policy)
+    return action_sampler.sample()
 
 
   def update(self, curr_obs, action, reward, next_obs, done, timestep):
-    self.optimizer.zero_grad()
+    print(timestep)
+    torch.autograd.set_detect_anomaly(True)
+    t = timestep % self.n
+    
     curr_feats = self.encode_features(curr_obs)
-    cur_q = self.model(curr_feats)[action]
-    if done:
-      reward = torch.as_tensor(reward)
-      loss = self.criterion(cur_q, reward)
-    else:
-      with torch.no_grad():
-        next_feats = self.encode_features(next_obs)
-        next_action = self.act(next_obs)
-        next_q = self.model(next_feats)[next_action]
-      loss = self.criterion(cur_q, reward + self.gamma * next_q)
+    policy, self.values[t] = self.model(curr_feats)
+    self.policies[t] = policy[action]
+    self.rewards[t] = reward * self.gamma**t
 
-    loss.backward()
-    self.optimizer.step()
+    if t == self.n - 1:
+      advantages = torch.zeros(self.n)
+      rets = torch.zeros(self.n)
+      next_feats = self.encode_features(next_obs)
+      _, final_value = self.model(next_feats)
+      for i in range(self.n):
+        rets[i] = torch.sum(self.rewards[i:]/(self.gamma**i)) + self.gamma**(self.n - i) * final_value
+      advantages = rets - self.values
+
+      self.optimizer.zero_grad()
+      for param in self.model.fc_value.parameters():
+        param.requires_grad = False
+      policy_loss = torch.sum(-torch.log(self.policies) * advantages) 
+      policy_loss.backward(retain_graph=True)
+      for param in self.model.fc_value.parameters():
+        param.requires_grad = True
+      value_loss = torch.sum(advantages)**2
+      value_loss.backward(retain_graph=True)
+      self.optimizer.step()
