@@ -149,25 +149,33 @@ class Agent():
     return torch.argmax(q1 + q2)
 
 
-  def update(self, curr_obs, action, reward, next_obs, done, timestep):
+  def update(self, curr_obs, action, reward, next_obs, done, timestep, use_replay=True):    
     self.optimizer.zero_grad()
-    if not done:
-      #Add observation to replay buffer
-      self.buffer.add(State(curr_obs), action, reward, State(next_obs))
+    if use_replay:
+      if not done:
+        #Add observation to replay buffer
+        self.buffer.add(State(curr_obs), action, reward, State(next_obs))
+
+      if timestep < self.buffer_capacity:
+          #No learning until buffer is full
+          return
 
     if (timestep % self.target_update_freq) == 0:
         #Update target network
         self.make_target_models()
 
-    if timestep < self.buffer_capacity:
-        #No learning until buffer is full
-        return
-    elif timestep <= self.eps_anneal_steps:
+    if timestep <= self.eps_anneal_steps:
         #Annealing epsilon
-        self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
+        if use_replay: # Only anneal once buffer is full
+          self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
+        else:
+          self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/self.eps_anneal_steps * timestep
 
     #Sample a batch
-    curr_obs, actions, rewards, next_obs = self.buffer.sample(self.batch_size)
+    if use_replay:
+      curr_obs, actions, rewards, next_obs = self.buffer.sample(self.batch_size)
+    else:
+      curr_obs, actions, rewards, next_obs = State(curr_obs).encode(), torch.stack([torch.tensor(action)]), torch.stack([torch.tensor(reward)]), State(next_obs).encode()
     update_model1 = np.random.binomial(1, 0.5)
     if update_model1:
       online_model = self.model1
