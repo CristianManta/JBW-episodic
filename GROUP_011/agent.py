@@ -3,7 +3,6 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
-import random
 import os.path as osp
 
 class CNN(nn.Module):
@@ -38,7 +37,7 @@ class Agent():
     self.lr = 0.001
     self.gamma = 0.9
     self.num_actions = 4
-    self.n = 5 #Number of timesteps in loss and gradient computation
+    self.n = 10 #Number of timesteps in loss and gradient computation
     self.states = torch.zeros((self.n, 4, 15, 15))
     self.actions = torch.zeros(self.n, dtype=torch.int64)
     self.rewards = torch.zeros(self.n)
