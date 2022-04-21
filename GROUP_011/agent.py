@@ -3,6 +3,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
+import random
 import os.path as osp
 
 class CNN(nn.Module):
@@ -37,8 +38,7 @@ class Agent():
     self.lr = 0.001
     self.gamma = 0.9
     self.num_actions = 4
-    self.n = 20 #Number of timesteps in loss and gradient computation
-
+    self.n = 5 #Number of timesteps in loss and gradient computation
     self.states = torch.zeros((self.n, 4, 15, 15))
     self.actions = torch.zeros(self.n, dtype=torch.int64)
     self.rewards = torch.zeros(self.n)
@@ -67,10 +67,6 @@ class Agent():
     return curr_obs.reshape((15, 15, 4)).transpose(0, 2).unsqueeze(0).float()
 
   def act(self, curr_obs, mode='eval'):
-    rand_action = np.random.binomial(1, self.eps)
-    if rand_action:
-      return self.env_specs['action_space'].sample()
-
     feats = self.encode_features(curr_obs)
     policy = self.model(feats, 'policy')
     action_sampler = Categorical(policy)
@@ -101,10 +97,9 @@ class Agent():
 
       policy_loss = torch.sum(-torch.log(policies) * advantages) 
 
-      self.optimizer.zero_grad()
       values = self.model(self.states, 'value')
       advantages = rets - values
-      value_loss = torch.sum(advantages)**2
-      policy_loss.backward()
-      value_loss.backward()
+      value_loss = torch.sum(torch.square(advantages))
+      loss = policy_loss + value_loss
+      loss.backward()
       self.optimizer.step()
