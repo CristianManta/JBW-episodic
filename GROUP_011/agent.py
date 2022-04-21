@@ -152,32 +152,54 @@ class Agent():
     return torch.argmax(q1 + q2)
 
 
-  def update(self, curr_obs, action, reward, next_obs, done, timestep):
+  def update(self, curr_obs, action, reward, next_obs, done, timestep, use_replay=False, use_target_model=False):
+    """
+    use_target_model: if True, will use a separate target model to model the targets. Otherwise, will alternate between the online networks 
+    (which receive gradient updates) for Q1 and Q2 to model the estimates and the targets
+    """    
     self.optimizer.zero_grad()
-    if not done:
-      #Add observation to replay buffer
-      self.buffer.add(State(curr_obs), action, reward, State(next_obs))
+    if use_replay:
+      if not done:
+        #Add observation to replay buffer
+        self.buffer.add(State(curr_obs), action, reward, State(next_obs))
 
-    if (timestep % self.target_update_freq) == 0:
+      if timestep < self.buffer_capacity:
+          #No learning until buffer is full
+          return
+
+    if use_target_model and (timestep % self.target_update_freq) == 0:
         #Update target network
         self.make_target_models()
 
-    if timestep < self.buffer_capacity:
-        #No learning until buffer is full
-        return
-    elif timestep <= self.eps_anneal_steps:
+    if timestep <= self.eps_anneal_steps:
         #Annealing epsilon
-        self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
+        if use_replay: # Only anneal once buffer is full
+          self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/(self.eps_anneal_steps - self.buffer_capacity) * (timestep - self.buffer_capacity)
+        else:
+          self.eps = self.initial_eps - (self.initial_eps - self.final_eps)/self.eps_anneal_steps * timestep
 
     #Sample a batch
-    curr_scent, curr_feats, actions, rewards, next_scent, next_feats = self.buffer.sample(self.batch_size)
+    if use_replay:
+      curr_scent, curr_feats, actions, rewards, next_scent, next_feats = self.buffer.sample(self.batch_size)
+    else:
+      curr_scent, curr_feats = State(curr_obs).encode()
+      next_scent, next_feats = State(next_obs).encode()
+      actions, rewards = torch.stack([torch.tensor(action)]), torch.stack([torch.tensor(reward)])
+
     update_model1 = np.random.binomial(1, 0.5)
     if update_model1:
       online_model = self.model1
-      target_model = self.target_model2
+      if use_target_model:
+        target_model = self.target_model2
+      else:
+        target_model = self.model2
+
     else:
       online_model = self.model2
-      target_model = self.target_model1
+      if use_target_model:
+        target_model = self.target_model1
+      else:
+        target_model = self.model1
     
     preds = online_model(curr_scent, curr_feats)
     estimates = preds.gather(1, actions.view(-1, 1)).flatten()
