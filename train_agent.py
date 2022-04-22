@@ -49,7 +49,8 @@ def train_agent(agent,
                 env_eval,
                 total_timesteps,
                 evaluation_freq,
-                n_episodes_to_evaluate):
+                n_episodes_to_evaluate,
+                save_weights):
 
   timestep = 0
   array_of_mean_acc_rewards = []
@@ -69,7 +70,7 @@ def train_agent(agent,
         mean_acc_rewards = evaluate_agent(agent, env_eval, n_episodes_to_evaluate)
         print('timestep: {ts}, acc_reward: {acr:.2f}'.format(ts=timestep, acr=mean_acc_rewards))
         array_of_mean_acc_rewards.append(mean_acc_rewards)
-        if best_reward < mean_acc_rewards:
+        if save_weights and best_reward < mean_acc_rewards:
           best_reward = mean_acc_rewards
           print("Saving weights...")
           agent.save_weights()
@@ -82,9 +83,11 @@ def train_agent(agent,
 if __name__ == '__main__':  
     
   parser = argparse.ArgumentParser(description='')
-  parser.add_argument('--group', type=str, default='GROUP1', help='group directory')
+  parser.add_argument('--group', type=str, default='GROUP_011', help='group directory')
+  parser.add_argument('--algorithm', type=str, default='ac', help='which RL algorithm to use. Choices: ac, ddqn, dqn, q_learning, sarsa')
   parser.add_argument('--seed', type=int, default=0, help='seed')
   parser.add_argument('--pretrain', action='store_true', help='Whether to load weights or not')
+  parser.add_argument('--save_weights', action='store_true', help='Whether to save best weights or not')
   args = parser.parse_args()
 
   seed = args.seed
@@ -98,8 +101,8 @@ if __name__ == '__main__':
 
   path = './'+args.group+'/'
   files = [f for f in listdir(path) if isfile(join(path, f))]
-  if ('agent.py' not in files) or ('env_info.txt' not in files):
-    print("Your GROUP folder does not contain agent.py or env_info.txt!")
+  if (f'agent_{args.algorithm}.py' not in files) or ('env_info.txt' not in files):
+    print(f"Your GROUP folder does not contain agent_{args.algorithm}.py or env_info.txt!")
     exit()
 
   with open(path+'env_info.txt') as f:
@@ -116,15 +119,20 @@ if __name__ == '__main__':
     env_specs = {'scent_space': env.scent_space, 'vision_space': env.vision_space, 'feature_space': env.feature_space, 'action_space': env.action_space}
   if 'mujoco' in env_type:
     env_specs = {'observation_space': env.observation_space, 'action_space': env.action_space}
-  agent_module = importlib.import_module(args.group+'.agent')
+
+  algorithms = ['ac', 'ddqn', 'dqn', 'q_learning', 'sarsa']
+  if not args.algorithm in algorithms:
+    print(f'ERROR: algorithm choices are: {algorithms}. Got: {args.algorithm}')
+    exit()
+  agent_module = importlib.import_module(args.group+f'.agent_{args.algorithm}')
   agent = agent_module.Agent(env_specs)
   if args.pretrain:
     agent.load_weights()
   
   # Note these can be environment specific and you are free to experiment with what works best for you
-  total_timesteps = 2e+6
+  total_timesteps = 5e+5
   evaluation_freq = 5000
   n_episodes_to_evaluate = 1
 
-  learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate)
+  learning_curve = train_agent(agent, env, env_eval, total_timesteps, evaluation_freq, n_episodes_to_evaluate, args.save_weights)
 
