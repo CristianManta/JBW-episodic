@@ -71,6 +71,7 @@ def train_agent(agent,
         print('timestep: {ts}, acc_reward: {acr:.2f}'.format(ts=timestep, acr=mean_acc_rewards))
         array_of_mean_acc_rewards.append(mean_acc_rewards)
         if save_weights and best_reward < mean_acc_rewards:
+          #Save the best weights
           best_reward = mean_acc_rewards
           print("Saving weights...")
           agent.save_weights()

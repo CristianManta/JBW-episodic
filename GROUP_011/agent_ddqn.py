@@ -7,6 +7,15 @@ import os.path as osp
 from copy import deepcopy
 
 class DQN(nn.Module):
+  """Our CNN architecture used to approximate the action value function.
+
+  Attributes:
+    self.conv1 (nn.Module): First convolutional layer.
+    self.conv2 (nn.Module): Second convolutional layer.
+    self.pool (nn.Module): Pooling layer.
+    self.fc1 (nn.Module): First fully-connected layer.
+    self.fc2 (nn.Module): Second fully-connected layer.
+  """
   def __init__(self):
     super().__init__()
     self.conv1 = nn.Conv2d(in_channels=4, out_channels=6, kernel_size=3)
@@ -16,6 +25,14 @@ class DQN(nn.Module):
     self.fc2 = nn.Linear(in_features=32, out_features=4)
 
   def forward(self, x):
+    """Forward pass of the network.
+
+    Args:
+      x (torch.tensor): Input to network.
+
+    Returns:
+      The estimated value function, i.e., a tensor with four entries (one for each action).
+    """
     x = self.pool(F.relu(self.conv1(x)))
     x = self.pool(F.relu(self.conv2(x)))
     x = torch.flatten(x,1)
@@ -24,6 +41,16 @@ class DQN(nn.Module):
     return out
 
 class State():
+  """Wrapper for a state. Helpful for the replay buffer.
+
+  Attributes:
+    scent (torch.tensor): Scent input.
+    vision (torch.tensor): Vision input.
+    features (torch.tensor): TA-provided features.
+
+  Args:
+    obs (list): Observation from the environment.
+  """
   def __init__(self, obs):
     self.scent = torch.tensor(obs[0])
     self.vision = torch.tensor(obs[1])
@@ -39,41 +66,71 @@ class State():
     return self.features
 
   def encode(self):
+    """Encode features to be fed into CNN."""
     return self.features.reshape((15, 15, 4)).transpose(0, 2).unsqueeze(0).float()
 
-#Inspired by PyTorch tutorial: https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 class ReplayBuffer(object):
+  """The replay buffer. Inspired by PyTorch tutorial: https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 
-    def __init__(self, capacity):
-        self.buffer = []
-        self.size = 0
-        self.capacity = capacity
+  Attributes:
+    buffer (list): The replay buffer/memory.
+    size (int): Number of entries in the buffer.
+    capacity (int): Capacity of the buffer.
 
-    def add(self, curr_obs, action, reward, next_obs):
-        """Save a transition"""
-        self.buffer.append([curr_obs, action, reward, next_obs])
-        if self.size == self.capacity:
-            self.buffer.pop(0)
-        else:
-            self.size += 1
+  Args:
+    capacity (int): Capacity of the replay buffer.
+  """
 
-    def sample(self, batch_size):
-        sample = random.sample(self.buffer, batch_size)
-        curr_obs_batch = torch.cat([a[0].encode() for a in sample])
-        action_batch = torch.stack([torch.tensor(a[1]) for a in sample])
-        reward_batch = torch.stack([torch.tensor(a[2]) for a in sample])
-        next_obs_batch = torch.cat([a[3].encode() for a in sample])
+  def __init__(self, capacity):
+    self.buffer = []
+    self.size = 0
+    self.capacity = capacity
 
-        return curr_obs_batch, action_batch, reward_batch, next_obs_batch
+  def add(self, curr_obs, action, reward, next_obs):
+    """Save a transition"""
+    self.buffer.append([curr_obs, action, reward, next_obs])
+    if self.size == self.capacity:
+        self.buffer.pop(0)
+    else:
+        self.size += 1
 
-    def __len__(self):
-        return self.size
+  def sample(self, batch_size):
+    sample = random.sample(self.buffer, batch_size)
+    curr_obs_batch = torch.cat([a[0].encode() for a in sample])
+    action_batch = torch.stack([torch.tensor(a[1]) for a in sample])
+    reward_batch = torch.stack([torch.tensor(a[2]) for a in sample])
+    next_obs_batch = torch.cat([a[3].encode() for a in sample])
+
+    return curr_obs_batch, action_batch, reward_batch, next_obs_batch
+
+  def __len__(self):
+    return self.size
 
 
 class Agent():
-  '''The agent class that is to be filled.
-     You are allowed to add any method you
-     want to this class.
+  '''DDQN agent.
+
+  Attributes:
+    env_specs (dictionary): Information about the environment.
+    lr (float): Learning rate.
+    gamma (float): Discount factor.
+    initial_eps (float): Starting value for epsilon.
+    eps (float): Parameter for epsilon-greedy action selection.
+    final_eps (float): Final value for epsilon (after annealing).
+    eval_eps (float): Value of epsilon to use at evaluation time.
+    eps_anneal_steps (int): Timespan over which to decay epsilon.
+    buffer_capacity (int): Capacity of the buffer.
+    buffer (ReplayBuffer): The replay buffer itself.
+    target_update_freq: Frequency at which target network is updated.
+    batch_size: Batch size for replay buffer sampling.
+    num_actions (int): Number of actions that can be taken.
+    model1 (nn.Module): The first DQN.
+    model2 (nn.Module): The second DQN.
+    optimizer (torch.optim object): The optimizer used during training.
+    criterion (nn loss object): The loss being used.
+
+  Args:
+    env_specs (dictionary): Information about the environment.
   '''
 
   def __init__(self, env_specs):
@@ -102,7 +159,7 @@ class Agent():
 
   def max_Q(self, curr_obs):
     """
-    Returns the maximum Q(S, A) given S
+    Returns the maximum Q(s,a) given s
     """
     feats = State(curr_obs).encode()
     q1, q2 = self.model1(feats), self.model2(feats)
@@ -118,6 +175,11 @@ class Agent():
 
 
   def load_weights(self, root_path="./"):
+    """Loading the weights of the function approximator.
+
+    Args:
+      root_path (str): Specification of path to weights
+    """
     # Add root_path in front of the path of the saved network parameters
     # For example if you have weights.pth in the GROUP_MJ1, do `root_path+"weights.pth"` while loading the parameters    
     full_path1 = root_path + "weights1.pth"
@@ -128,6 +190,11 @@ class Agent():
     
 
   def save_weights(self, root_path="./"):
+    """Saving the weights of the function approximator.
+    
+    Args:
+      root_path (str): Destination path for saved weights.
+    """
     full_path1 = root_path + "weights1.pth"
     full_path2 = root_path + "weights2.pth"
     torch.save(self.model1.state_dict(), full_path1)
@@ -135,25 +202,44 @@ class Agent():
 
 
   def act(self, curr_obs, mode='eval'):
+    """Given an observation from the environment, select an action.
+
+    Args:
+      curr_obs (list): Observation from the environment.
+      mode (str): Indicates whether we are in training or evaluation mode.
+    """
     if mode == 'train':
       eps = self.eps
     elif mode == 'eval':
       eps = self.eval_eps
 
+    #Take a random action with probability epsilon
     rand_action = np.random.binomial(1, eps)
     if rand_action:
       return self.env_specs['action_space'].sample()
 
+    #Otherwise, select the greedy action
     feats = State(curr_obs).encode()
     q1, q2 = self.model1(feats), self.model2(feats)    
     return torch.argmax(q1 + q2)
 
 
   def update(self, curr_obs, action, reward, next_obs, done, timestep, use_replay=True, use_target_model=True):
+    """Given a transition, perform a Q-learning update.
+    
+    Args:
+      curr_obs (list): The current observation from the environment.
+      action (int): The action taken.
+      reward (float): The reward received.
+      next_obs (list): The next observation from the environment.
+      done (bool): Whether or not we have reached the end of the episode.
+      timestep (int): The current timestep.
+      use_replay (bool): Whether or not to use a replay buffer.
+      use_target_model (bool): if True, will use a separate target model to model the targets. 
+                              Otherwise, will alternate between the online networks 
+                              (which receive gradient updates) for Q1 and Q2 to model the estimates and the targets
     """
-    use_target_model: if True, will use a separate target model to model the targets. Otherwise, will alternate between the online networks 
-    (which receive gradient updates) for Q1 and Q2 to model the estimates and the targets
-    """    
+
     self.optimizer.zero_grad()
     if use_replay:
       if not done:
@@ -180,6 +266,8 @@ class Agent():
       curr_obs, actions, rewards, next_obs = self.buffer.sample(self.batch_size)
     else:
       curr_obs, actions, rewards, next_obs = State(curr_obs).encode(), torch.stack([torch.tensor(action)]), torch.stack([torch.tensor(reward)]), State(next_obs).encode()
+
+    #Decide which model to update
     update_model1 = np.random.binomial(1, 0.5)
     if update_model1:
       online_model = self.model1
@@ -187,7 +275,6 @@ class Agent():
         target_model = self.target_model2
       else:
         target_model = self.model2
-
     else:
       online_model = self.model2
       if use_target_model:
@@ -195,10 +282,10 @@ class Agent():
       else:
         target_model = self.model1
     
+    #Compute loss and gradient before performing Q-learning update
     preds = online_model(curr_obs)
     estimates = preds.gather(1, actions.view(-1, 1)).flatten()    
     targets = rewards + self.gamma * torch.max(target_model(next_obs), dim=1)[0]
-
     loss = self.criterion(estimates, targets)
     loss.backward()
     self.optimizer.step()
