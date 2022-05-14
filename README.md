@@ -1,4 +1,16 @@
 # JBW-episodic
+## Final Results
+Our group achieved the highest performance and sample efficiency for the JBW domain according to the class leaderboard [here](https://github.com/COMP579TA/COMP579-Leaderboard). Our local evaluations (which use a different normalization for the sample efficiency as well as different seeds) indicate the following final results: 
+
+| **Algorithm** | **Performance** | **Sample Efficiency** |
+|---------------|-----------------|-----------------------|
+|     Sarsa     |      672.20     |        1033.72        |
+|   Q-Learning  |      674.33     |        2011.18        |
+|      DQN      |      665.83     |        1269.45        |
+|      DDQN     |      698.67     |        2234.50        |
+|      A2C      |      766.13     |        3046.77        |
+
+Please refer to our [report](/Project_Report.pdf) for more details.
 ## Virtual Environment
 Create a virtual environment with the dependencies found in `environment.yml`. 
 
