@@ -1,4 +1,4 @@
-# COMP579 Project Template
+# JBW-episodic
 ## Virtual Environment
 Create a virtual environment with the dependencies found in `environment.yml`. 
 
